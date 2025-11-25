@@ -53,17 +53,20 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser }) => {
     setError(null);
     setShowNextSuggestion(false);
     
-    // CACHE KEY ATUALIZADA - "v26_debug_error"
-    // Atualizada para mostrar os erros reais na tela em vez de texto genérico
-    const cacheKey = `wisdom_day_${day}_v26_debug_error`;
+    // CACHE KEY ATUALIZADA - "v27_detailed"
+    // Garante que buscamos o novo conteúdo detalhado E salvamos para não gastar créditos depois.
+    const cacheKey = `wisdom_day_${day}_v27_detailed`;
     const cached = localStorage.getItem(cacheKey);
 
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
-        setContent(parsed);
-        setLoading(false);
-        return;
+        // Verificação simples para garantir que não estamos carregando um erro cacheado
+        if (parsed.interpretation && !parsed.interpretation.includes("⚠️")) {
+            setContent(parsed);
+            setLoading(false);
+            return;
+        }
       } catch (e) {
         localStorage.removeItem(cacheKey);
       }
@@ -73,13 +76,15 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser }) => {
       const result = await fetchDailyWisdom(day);
 
       if (result) {
-        try {
-          localStorage.setItem(cacheKey, JSON.stringify(result));
-          setContent(result);
-        } catch (e) {
-          console.warn("Could not cache to local storage", e);
-          setContent(result);
+        // Só salva no cache se não for uma mensagem de erro da IA
+        if (!result.interpretation.includes("⚠️")) {
+            try {
+              localStorage.setItem(cacheKey, JSON.stringify(result));
+            } catch (e) {
+              console.warn("Could not cache to local storage", e);
+            }
         }
+        setContent(result);
       } else {
         throw new Error("Falha ao carregar texto.");
       }

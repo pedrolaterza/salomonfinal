@@ -3,8 +3,7 @@ import { DailyContent, Verse } from "../types";
 import { PROVERBS_DATA } from "../data/proverbsData";
 
 // CHAVE DE API CHUMBADA (HARDCODED)
-// Isso garante que funcione no Vercel/GitHub Pages sem configuração de variáveis de ambiente.
-const API_KEY = 'AIzaSyBupxKTUvWaqkXPPIHI2Jj03elqs5I7D7g';
+const API_KEY = 'AIzaSyAGrJZzdfLq_b5J2f6EPmSmedmMtQkM500';
 
 // --- ESQUEMA DE RESPOSTA (SCHEMA) ---
 const responseSchema = {
@@ -12,12 +11,12 @@ const responseSchema = {
   properties: {
     interpretation: { 
       type: Type.STRING, 
-      description: "Uma explicação teológica breve e direta sobre o texto." 
+      description: "Uma explicação teológica profunda, detalhada e surpreendente sobre o texto. Pode incluir nuances do hebraico ou contexto histórico." 
     },
     practicalSteps: { 
       type: Type.ARRAY, 
       items: { type: Type.STRING },
-      description: "Exatamente 3 ações práticas curtas. Não coloque perguntas aqui."
+      description: "Exatamente 3 ações práticas curtas e impactantes. Não coloque perguntas aqui."
     },
     reflectionQuestion: { 
       type: Type.STRING, 
@@ -25,7 +24,7 @@ const responseSchema = {
     },
     historicalCuriosity: { 
       type: Type.STRING, 
-      description: "Um fato histórico ou cultural sobre a época de Salomão." 
+      description: "Um fato histórico, cultural ou arqueológico sobre a época de Salomão." 
     }
   },
   required: ["interpretation", "practicalSteps", "reflectionQuestion", "historicalCuriosity"]
@@ -64,19 +63,20 @@ export const fetchDailyWisdom = async (day: number): Promise<DailyContent | null
     // Tenta inicializar a IA com a chave hardcoded
     const ai = new GoogleGenAI({ apiKey: API_KEY });
     
+    // PROMPT OTIMIZADO PARA PROFUNDIDADE
     const prompt = `
-      Você é um especialista bíblico e historiador.
-      Analise o texto abaixo de Provérbios Capítulo ${day}:
+      Atue como um teólogo sábio, historiador profundo e mentor espiritual.
+      Analise o texto abaixo de Provérbios Capítulo ${day} (Versão NVI):
       
-      "${fullTextForAI.substring(0, 10000)}"
+      "${fullTextForAI.substring(0, 15000)}"
 
-      Tarefa: Gere um objeto JSON com insights sobre este texto específico.
+      Sua missão é extrair sabedoria que surpreenda o leitor.
       
-      Regras Rígidas:
-      1. interpretation: Máximo 2 frases. Foco teológico.
-      2. practicalSteps: Crie exatamente 3 frases curtas imperativas (ex: "Faça isso", "Evite aquilo"). NUNCA coloque perguntas aqui.
-      3. reflectionQuestion: Uma pergunta pessoal e profunda baseada no texto.
-      4. historicalCuriosity: Um fato interessante sobre costumes antigos ou contexto histórico.
+      Diretrizes para o JSON:
+      1. interpretation: NÃO SEJA GENÉRICO. Escreva um parágrafo rico (aprox 4-6 linhas). Se possível, traga o significado de uma palavra-chave no original hebraico ou explique uma metáfora difícil. Faça o leitor pensar: "Uau, eu nunca tinha visto por esse ângulo". Conecte a sabedoria antiga com a alma humana moderna.
+      2. practicalSteps: 3 ordens diretas e aplicáveis hoje. Use verbos de ação fortes.
+      3. reflectionQuestion: Uma pergunta que penetre a alma e force uma autoanálise sincera.
+      4. historicalCuriosity: Traga um fato específico sobre os costumes do Antigo Oriente Próximo, a corte de Salomão ou arqueologia que ilumine o texto. Evite curiosidades óbvias.
     `;
 
     const response = await ai.models.generateContent({
@@ -85,7 +85,8 @@ export const fetchDailyWisdom = async (day: number): Promise<DailyContent | null
       config: {
         responseMimeType: "application/json",
         responseSchema: responseSchema,
-        temperature: 0.5,
+        temperature: 0.7, // Um pouco mais criativo para gerar insights surpreendentes
+        topK: 40,
       },
     });
 
@@ -109,20 +110,14 @@ export const fetchDailyWisdom = async (day: number): Promise<DailyContent | null
 
   } catch (error: any) {
     // --- EXIBIÇÃO DE ERRO NA TELA ---
-    // Em vez de texto genérico, mostramos o erro real para depuração.
     const errorMessage = error instanceof Error ? error.message : String(error);
-    
     console.error("Erro CRÍTICO na IA:", error);
 
     aiContent = {
-      interpretation: `⚠️ ERRO DE SISTEMA: ${errorMessage}\n\nPOR QUE ISSO ACONTECEU?\nO sistema tentou conectar à Inteligência Artificial mas falhou. Isso geralmente ocorre se a Chave de API for inválida, se houver bloqueio de rede ou se a cota gratuita excedeu.`,
-      practicalSteps: [
-        "Verifique sua conexão com a internet.",
-        "Se você é o desenvolvedor: Verifique o console (F12) para detalhes.",
-        `Código do erro: ${errorMessage.substring(0, 50)}...`
-      ],
-      reflectionQuestion: "Não foi possível gerar a reflexão devido ao erro acima.",
-      historicalCuriosity: "Dados históricos indisponíveis no momento."
+      interpretation: `⚠️ A sabedoria está carregando... (Erro Técnico: ${errorMessage})`,
+      practicalSteps: ["Verifique sua conexão.", "Tente recarregar a página."],
+      reflectionQuestion: "Tente novamente em instantes.",
+      historicalCuriosity: "Sem dados."
     };
   }
 
