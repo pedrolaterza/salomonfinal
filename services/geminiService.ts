@@ -1,160 +1,138 @@
-
-import { GoogleGenAI, Type, Schema, HarmCategory, HarmBlockThreshold } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { DailyContent, Verse } from "../types";
 import { PROVERBS_DATA } from "../data/proverbsData";
 
-// API KEY HARDCODED PARA GARANTIA EM PRODUÇÃO (VERCEL)
-const FALLBACK_KEY = 'AIzaSyBupxKTUvWaqkXPPIHI2Jj03elqs5I7D7g';
-
-const metadataSchema: Schema = {
+// --- ESQUEMA DE RESPOSTA (SCHEMA) ---
+// Isso força a IA a seguir estritamente este formato, impossibilitando erros de estrutura.
+const responseSchema = {
   type: Type.OBJECT,
   properties: {
-    interpretation: { type: Type.STRING, description: "Interpretação única e específica para ESTE capítulo." },
+    interpretation: { 
+      type: Type.STRING, 
+      description: "Uma explicação teológica breve e direta sobre o texto." 
+    },
     practicalSteps: { 
       type: Type.ARRAY, 
       items: { type: Type.STRING },
-      description: "3 passos práticos."
+      description: "Exatamente 3 ações práticas curtas. Não coloque perguntas aqui."
     },
-    reflectionQuestion: { type: Type.STRING, description: "Uma pergunta profunda." },
-    historicalCuriosity: { type: Type.STRING, description: "Uma curiosidade histórica." }
+    reflectionQuestion: { 
+      type: Type.STRING, 
+      description: "Uma única pergunta para o leitor refletir sobre sua vida." 
+    },
+    historicalCuriosity: { 
+      type: Type.STRING, 
+      description: "Um fato histórico ou cultural sobre a época de Salomão." 
+    }
   },
   required: ["interpretation", "practicalSteps", "reflectionQuestion", "historicalCuriosity"]
 };
 
-// Função para limpar sujeira da IA (Senior Fix)
-const sanitizeResponse = (aiData: any): any => {
-  const cleanData = { ...aiData };
-
-  // 1. Corrigir Practical Steps
-  if (Array.isArray(cleanData.practicalSteps)) {
-    // Filtra chaves técnicas que a IA vazou como texto
-    cleanData.practicalSteps = cleanData.practicalSteps.filter((step: string) => {
-      const s = step.toLowerCase().trim();
-      return s !== 'reflectionquestion' && 
-             s !== 'historicalcuriosity' && 
-             s !== 'interpretation' &&
-             s.length > 5; // Remove lixo curto
-    });
-
-    // Se a IA colocou a reflexão dentro dos passos práticos (comum no erro relatado)
-    // Tenta identificar itens muito longos ou que parecem perguntas no final da lista
-    if (cleanData.practicalSteps.length > 3) {
-        // Mantém apenas os 3 primeiros como passos reais
-        cleanData.practicalSteps = cleanData.practicalSteps.slice(0, 3);
-    }
-  }
-
-  // 2. Garantia de Strings
-  if (!cleanData.interpretation || typeof cleanData.interpretation !== 'string') {
-      cleanData.interpretation = "A sabedoria deste capítulo é profunda. Reflita sobre cada versículo.";
-  }
-  if (!cleanData.reflectionQuestion || typeof cleanData.reflectionQuestion !== 'string') {
-      cleanData.reflectionQuestion = "O que este capítulo falou ao seu coração?";
-  }
-  
-  return cleanData;
-};
-
+// --- FUNÇÃO PRINCIPAL ---
 export const fetchDailyWisdom = async (day: number): Promise<DailyContent | null> => {
+  // 1. Carrega o Texto Bíblico do Banco de Dados Local (100% Fiel e Offline)
   const chapterLines = PROVERBS_DATA[day];
 
+  // Fallback de segurança caso o dia não exista no banco (raro)
   if (!chapterLines || chapterLines.length === 0) {
     return {
       day,
       scriptureReference: `Provérbios ${day}`,
-      scriptureVerses: [{ verse: 1, text: "Texto em breve..." }],
-      interpretation: "...",
-      practicalSteps: [],
-      reflectionQuestion: "...",
-      historicalCuriosity: ""
+      scriptureVerses: [{ verse: 1, text: "Texto indisponível no momento." }],
+      interpretation: "Leia o capítulo na sua Bíblia.",
+      practicalSteps: ["Ler", "Meditar", "Orar"],
+      reflectionQuestion: "O que Deus falou com você?",
+      historicalCuriosity: "Salomão escreveu 3000 provérbios."
     };
   }
 
+  // Formata os versículos para o Frontend
   const verses: Verse[] = chapterLines.map((text, index) => ({
     verse: index + 1,
     text: text
   }));
-  
+
+  // Prepara o texto para enviar para a IA
   const fullTextForAI = chapterLines.join(" ");
 
-  // Default Fallback
-  let interpretation = "A sabedoria de Salomão nos convida a uma vida de disciplina e temor ao Senhor. Este capítulo oferece conselhos práticos para evitar armadilhas comuns.";
-  let practicalSteps = [
-    "Leia o texto pausadamente.",
-    "Identifique um princípio para aplicar hoje.",
-    "Ore pedindo sabedoria."
-  ];
-  let reflectionQuestion = "Qual versículo mais chamou sua atenção e por quê?";
-  let historicalCuriosity = "Provérbios era usado no antigo Israel para instruir jovens na corte real.";
+  // 2. Valores Padrão (Caso a IA falhe ou esteja sem internet)
+  let aiContent = {
+    interpretation: "A sabedoria de Salomão é um convite para vivermos com prudência, justiça e temor ao Senhor. Medite nestas palavras.",
+    practicalSteps: [
+      "Leia o capítulo novamente com calma.",
+      "Identifique um versículo que chamou sua atenção.",
+      "Faça uma oração pedindo sabedoria."
+    ],
+    reflectionQuestion: "Como você pode aplicar a sabedoria deste capítulo nas suas decisões de hoje?",
+    historicalCuriosity: "O livro de Provérbios foi compilado principalmente para instruir os jovens na corte real de Israel."
+  };
 
+  // 3. Chamada à Inteligência Artificial
   try {
-    // Tenta pegar a chave do ambiente, se falhar, usa a Fallback
-    // @ts-ignore
-    const apiKey = process.env.API_KEY || (window.process && window.process.env && window.process.env.API_KEY) || FALLBACK_KEY;
-
-    if (!apiKey) {
-        console.error("SEM API KEY DEFINIDA");
-        throw new Error("No API Key");
-    }
-
-    const ai = new GoogleGenAI({ apiKey: apiKey });
-    const model = "gemini-2.5-flash";
-
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
+    // Configuração do Prompt (Comando)
     const prompt = `
-      Analise PROVÉRBIOS CAPÍTULO ${day}:
-      "${fullTextForAI.substring(0, 8000)}"
+      Você é um especialista bíblico e historiador.
+      Analise o texto abaixo de Provérbios Capítulo ${day}:
+      
+      "${fullTextForAI.substring(0, 10000)}"
 
-      Gere um JSON VÁLIDO.
-      1. interpretation: Resumo teológico (2 linhas).
-      2. practicalSteps: EXATAMENTE 3 frases curtas de ação. NÃO inclua perguntas aqui.
-      3. reflectionQuestion: Uma única pergunta pessoal.
-      4. historicalCuriosity: Um fato histórico breve.
-
-      NÃO repita os nomes das chaves (ex: não escreva "reflectionQuestion" no valor).
+      Tarefa: Gere um objeto JSON com insights sobre este texto específico.
+      
+      Regras Rígidas:
+      1. interpretation: Máximo 2 frases. Foco teológico.
+      2. practicalSteps: Crie exatamente 3 frases curtas imperativas (ex: "Faça isso", "Evite aquilo"). NUNCA coloque perguntas aqui.
+      3. reflectionQuestion: Uma pergunta pessoal e profunda baseada no texto.
+      4. historicalCuriosity: Um fato interessante sobre costumes antigos ou contexto histórico.
     `;
 
     const response = await ai.models.generateContent({
-      model: model,
+      model: "gemini-2.5-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
-        responseSchema: metadataSchema,
-        temperature: 0.6, // Reduzido para ser mais "quadrado" e respeitar o JSON
-        safetySettings: [
-          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-          { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE }
-        ]
+        responseSchema: responseSchema, // Força a estrutura
+        temperature: 0.5, // Baixa criatividade para evitar alucinações
       },
     });
 
-    const responseText = response.text;
-    if (responseText) {
-      let aiData = JSON.parse(responseText);
+    if (response.text) {
+      const parsedData = JSON.parse(response.text);
       
-      // APLICA A SANITIZAÇÃO SÊNIOR
-      aiData = sanitizeResponse(aiData);
+      // Validação final antes de usar
+      if (parsedData.interpretation && 
+          Array.isArray(parsedData.practicalSteps) && 
+          parsedData.practicalSteps.length > 0 &&
+          parsedData.reflectionQuestion) {
+          
+          // Sanitização Extra: Garante que só pegamos os 3 primeiros passos e limpamos strings
+          const cleanSteps = parsedData.practicalSteps
+            .slice(0, 3)
+            .map((s: any) => String(s).replace(/["']/g, ""));
 
-      if (aiData) {
-        if (aiData.interpretation) interpretation = aiData.interpretation;
-        if (aiData.practicalSteps && Array.isArray(aiData.practicalSteps)) practicalSteps = aiData.practicalSteps;
-        if (aiData.reflectionQuestion) reflectionQuestion = aiData.reflectionQuestion;
-        if (aiData.historicalCuriosity) historicalCuriosity = aiData.historicalCuriosity;
+          aiContent = {
+            interpretation: parsedData.interpretation,
+            practicalSteps: cleanSteps,
+            reflectionQuestion: parsedData.reflectionQuestion,
+            historicalCuriosity: parsedData.historicalCuriosity || aiContent.historicalCuriosity
+          };
       }
     }
-  } catch (aiError) {
-    console.error("Gemini Error:", aiError);
-    // Fallback silencioso mantendo o texto bíblico intacto
+
+  } catch (error) {
+    console.warn("AI Generation failed, using fallback content.", error);
+    // Não fazemos nada, mantemos o aiContent padrão definido acima
   }
-  
+
+  // 4. Retorno Final (Texto Fixo + Sabedoria da IA)
   return {
     day: day,
     scriptureReference: `Provérbios ${day}`,
     scriptureVerses: verses,
-    interpretation: interpretation,
-    practicalSteps: practicalSteps,
-    reflectionQuestion: reflectionQuestion,
-    historicalCuriosity: historicalCuriosity
+    interpretation: aiContent.interpretation,
+    practicalSteps: aiContent.practicalSteps,
+    reflectionQuestion: aiContent.reflectionQuestion,
+    historicalCuriosity: aiContent.historicalCuriosity
   };
 };

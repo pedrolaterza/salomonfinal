@@ -54,23 +54,17 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser }) => {
     setError(null);
     setShowNextSuggestion(false);
     
-    // CACHE KEY ATUALIZADA - "v24_production_fix"
-    // Força o recarregamento com a nova lógica de sanitização
-    const cacheKey = `wisdom_day_${day}_v24_production_fix`;
+    // CACHE KEY ATUALIZADA - "v25_new_ai_logic"
+    // Força o recarregamento com a nova lógica de IA recriada do zero
+    const cacheKey = `wisdom_day_${day}_v25_new_ai_logic`;
     const cached = localStorage.getItem(cacheKey);
 
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
-        // Verificação extra para garantir que não temos lixo no cache
-        if (parsed.interpretation && 
-            !parsed.interpretation.startsWith("A sabedoria de Salomão é profunda.") &&
-            // Verifica se a lista de passos não tem as chaves quebradas
-            !JSON.stringify(parsed.practicalSteps).includes("reflectionQuestion")) {
-            setContent(parsed);
-            setLoading(false);
-            return;
-        }
+        setContent(parsed);
+        setLoading(false);
+        return;
       } catch (e) {
         localStorage.removeItem(cacheKey);
       }
