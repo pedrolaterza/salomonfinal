@@ -3,27 +3,62 @@ import { GoogleGenAI, Type, Schema, HarmCategory, HarmBlockThreshold } from "@go
 import { DailyContent, Verse } from "../types";
 import { PROVERBS_DATA } from "../data/proverbsData";
 
+// API KEY HARDCODED PARA GARANTIA EM PRODUÇÃO (VERCEL)
+const FALLBACK_KEY = 'AIzaSyBupxKTUvWaqkXPPIHI2Jj03elqs5I7D7g';
+
 const metadataSchema: Schema = {
   type: Type.OBJECT,
   properties: {
-    interpretation: { type: Type.STRING, description: "Interpretação única e específica para ESTE capítulo. Não seja genérico. Use markdown bold (**texto**)." },
+    interpretation: { type: Type.STRING, description: "Interpretação única e específica para ESTE capítulo." },
     practicalSteps: { 
       type: Type.ARRAY, 
       items: { type: Type.STRING },
-      description: "3 passos práticos e acionáveis extraídos diretamente dos versículos deste capítulo. Use markdown bold (**texto**)."
+      description: "3 passos práticos."
     },
-    reflectionQuestion: { type: Type.STRING, description: "Uma pergunta profunda e provocativa baseada em um versículo específico deste capítulo. USE **negrito**." },
-    historicalCuriosity: { type: Type.STRING, description: "Uma curiosidade histórica, cultural ou etimológica ÚNICA sobre este capítulo específico." }
+    reflectionQuestion: { type: Type.STRING, description: "Uma pergunta profunda." },
+    historicalCuriosity: { type: Type.STRING, description: "Uma curiosidade histórica." }
   },
   required: ["interpretation", "practicalSteps", "reflectionQuestion", "historicalCuriosity"]
 };
 
+// Função para limpar sujeira da IA (Senior Fix)
+const sanitizeResponse = (aiData: any): any => {
+  const cleanData = { ...aiData };
+
+  // 1. Corrigir Practical Steps
+  if (Array.isArray(cleanData.practicalSteps)) {
+    // Filtra chaves técnicas que a IA vazou como texto
+    cleanData.practicalSteps = cleanData.practicalSteps.filter((step: string) => {
+      const s = step.toLowerCase().trim();
+      return s !== 'reflectionquestion' && 
+             s !== 'historicalcuriosity' && 
+             s !== 'interpretation' &&
+             s.length > 5; // Remove lixo curto
+    });
+
+    // Se a IA colocou a reflexão dentro dos passos práticos (comum no erro relatado)
+    // Tenta identificar itens muito longos ou que parecem perguntas no final da lista
+    if (cleanData.practicalSteps.length > 3) {
+        // Mantém apenas os 3 primeiros como passos reais
+        cleanData.practicalSteps = cleanData.practicalSteps.slice(0, 3);
+    }
+  }
+
+  // 2. Garantia de Strings
+  if (!cleanData.interpretation || typeof cleanData.interpretation !== 'string') {
+      cleanData.interpretation = "A sabedoria deste capítulo é profunda. Reflita sobre cada versículo.";
+  }
+  if (!cleanData.reflectionQuestion || typeof cleanData.reflectionQuestion !== 'string') {
+      cleanData.reflectionQuestion = "O que este capítulo falou ao seu coração?";
+  }
+  
+  return cleanData;
+};
+
 export const fetchDailyWisdom = async (day: number): Promise<DailyContent | null> => {
-  // 1. GARANTIA ABSOLUTA: O Texto vem do arquivo local primeiro.
   const chapterLines = PROVERBS_DATA[day];
 
   if (!chapterLines || chapterLines.length === 0) {
-    console.error(`ERRO CRÍTICO: Texto do dia ${day} não encontrado no banco de dados.`);
     return {
       day,
       scriptureReference: `Provérbios ${day}`,
@@ -35,46 +70,47 @@ export const fetchDailyWisdom = async (day: number): Promise<DailyContent | null
     };
   }
 
-  // Formatar versículos para exibição
   const verses: Verse[] = chapterLines.map((text, index) => ({
     verse: index + 1,
     text: text
   }));
   
-  // Preparar texto para a IA
   const fullTextForAI = chapterLines.join(" ");
 
-  // 2. Definir valores PADRÃO (Fallback) caso a IA falhe
-  // Estes valores só aparecem se a API do Google cair ou bloquear o pedido.
-  let interpretation = "A sabedoria de Salomão é profunda. Releia o texto e medite em como ele se aplica à sua vida hoje.";
+  // Default Fallback
+  let interpretation = "A sabedoria de Salomão nos convida a uma vida de disciplina e temor ao Senhor. Este capítulo oferece conselhos práticos para evitar armadilhas comuns.";
   let practicalSteps = [
-    "Leia o capítulo novamente com calma.",
-    "Identifique um versículo que falou com você.",
-    "Escreva como você pode mudar uma atitude hoje."
+    "Leia o texto pausadamente.",
+    "Identifique um princípio para aplicar hoje.",
+    "Ore pedindo sabedoria."
   ];
-  let reflectionQuestion = "O que Deus falou ao seu coração através destes versículos?";
-  let historicalCuriosity = "O livro de Provérbios é um compilado de sabedoria prática para a vida.";
+  let reflectionQuestion = "Qual versículo mais chamou sua atenção e por quê?";
+  let historicalCuriosity = "Provérbios era usado no antigo Israel para instruir jovens na corte real.";
 
-  // 3. Tentar enriquecer com IA
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    // Tenta pegar a chave do ambiente, se falhar, usa a Fallback
+    // @ts-ignore
+    const apiKey = process.env.API_KEY || (window.process && window.process.env && window.process.env.API_KEY) || FALLBACK_KEY;
+
+    if (!apiKey) {
+        console.error("SEM API KEY DEFINIDA");
+        throw new Error("No API Key");
+    }
+
+    const ai = new GoogleGenAI({ apiKey: apiKey });
     const model = "gemini-2.5-flash";
 
     const prompt = `
-      Você é um teólogo sábio e historiador bíblico.
-      
-      Sua tarefa é analisar o TEXTO ABAIXO do livro de Provérbios, Capítulo ${day}.
-      
-      TEXTO PARA ANÁLISE:
-      "${fullTextForAI}"
+      Analise PROVÉRBIOS CAPÍTULO ${day}:
+      "${fullTextForAI.substring(0, 8000)}"
 
-      INSTRUÇÕES ESTRITAS:
-      1. IGNORE qualquer conhecimento prévio genérico. Baseie-se APENAS no texto acima.
-      2. A interpretação deve citar temas específicos que aparecem nestes versículos.
-      3. A curiosidade histórica deve ser sobre uma palavra, costume ou contexto ESPECÍFICO deste capítulo (não fale sobre Salomão em geral).
-      4. A pergunta de reflexão deve tocar na ferida, ser pessoal e baseada no texto.
+      Gere um JSON VÁLIDO.
+      1. interpretation: Resumo teológico (2 linhas).
+      2. practicalSteps: EXATAMENTE 3 frases curtas de ação. NÃO inclua perguntas aqui.
+      3. reflectionQuestion: Uma única pergunta pessoal.
+      4. historicalCuriosity: Um fato histórico breve.
 
-      Gere a resposta em JSON seguindo o esquema solicitado.
+      NÃO repita os nomes das chaves (ex: não escreva "reflectionQuestion" no valor).
     `;
 
     const response = await ai.models.generateContent({
@@ -83,8 +119,7 @@ export const fetchDailyWisdom = async (day: number): Promise<DailyContent | null
       config: {
         responseMimeType: "application/json",
         responseSchema: metadataSchema,
-        temperature: 0.7,
-        // Configurações de segurança para evitar bloqueio de texto religioso/bíblico
+        temperature: 0.6, // Reduzido para ser mais "quadrado" e respeitar o JSON
         safetySettings: [
           { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
           { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -96,9 +131,12 @@ export const fetchDailyWisdom = async (day: number): Promise<DailyContent | null
 
     const responseText = response.text;
     if (responseText) {
-      const aiData = JSON.parse(responseText);
+      let aiData = JSON.parse(responseText);
+      
+      // APLICA A SANITIZAÇÃO SÊNIOR
+      aiData = sanitizeResponse(aiData);
+
       if (aiData) {
-        // Só sobrescrevemos se os dados existirem
         if (aiData.interpretation) interpretation = aiData.interpretation;
         if (aiData.practicalSteps && Array.isArray(aiData.practicalSteps)) practicalSteps = aiData.practicalSteps;
         if (aiData.reflectionQuestion) reflectionQuestion = aiData.reflectionQuestion;
@@ -106,11 +144,10 @@ export const fetchDailyWisdom = async (day: number): Promise<DailyContent | null
       }
     }
   } catch (aiError) {
-    console.warn("IA offline ou bloqueada. Detalhes:", aiError);
-    // Se der erro, usamos o fallback definido acima, mas o texto bíblico (PROVERBS_DATA) continua garantido.
+    console.error("Gemini Error:", aiError);
+    // Fallback silencioso mantendo o texto bíblico intacto
   }
   
-  // 4. Retornar o conteúdo (Texto Fixo + Insights da IA ou Padrão)
   return {
     day: day,
     scriptureReference: `Provérbios ${day}`,

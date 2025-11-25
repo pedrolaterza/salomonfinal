@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { DailyContent, UserState } from '../types';
 import { fetchDailyWisdom } from '../services/geminiService';
@@ -53,16 +54,19 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser }) => {
     setError(null);
     setShowNextSuggestion(false);
     
-    // CACHE KEY ATUALIZADA - "v22_ai_restored"
-    // Força o recarregamento para usar a nova chave de API
-    const cacheKey = `wisdom_day_${day}_v22_ai_restored`;
+    // CACHE KEY ATUALIZADA - "v24_production_fix"
+    // Força o recarregamento com a nova lógica de sanitização
+    const cacheKey = `wisdom_day_${day}_v24_production_fix`;
     const cached = localStorage.getItem(cacheKey);
 
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
-        // Se a interpretação for o texto genérico antigo, forçamos recarregar
-        if (parsed.interpretation && !parsed.interpretation.startsWith("A sabedoria de Salomão é profunda.")) {
+        // Verificação extra para garantir que não temos lixo no cache
+        if (parsed.interpretation && 
+            !parsed.interpretation.startsWith("A sabedoria de Salomão é profunda.") &&
+            // Verifica se a lista de passos não tem as chaves quebradas
+            !JSON.stringify(parsed.practicalSteps).includes("reflectionQuestion")) {
             setContent(parsed);
             setLoading(false);
             return;
