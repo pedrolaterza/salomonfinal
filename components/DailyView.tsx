@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { DailyContent, UserState } from '../types';
 import { fetchDailyWisdom } from '../services/geminiService';
@@ -54,9 +53,9 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser }) => {
     setError(null);
     setShowNextSuggestion(false);
     
-    // CACHE KEY ATUALIZADA - "v25_new_ai_logic"
-    // Força o recarregamento com a nova lógica de IA recriada do zero
-    const cacheKey = `wisdom_day_${day}_v25_new_ai_logic`;
+    // CACHE KEY ATUALIZADA - "v26_debug_error"
+    // Atualizada para mostrar os erros reais na tela em vez de texto genérico
+    const cacheKey = `wisdom_day_${day}_v26_debug_error`;
     const cached = localStorage.getItem(cacheKey);
 
     if (cached) {
@@ -270,7 +269,7 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser }) => {
               Entendimento
             </h3>
             <div className="p-4 bg-royal-50 dark:bg-royal-900/20 rounded-xl border-l-4 border-royal-800 dark:border-royal-400">
-               <p className="text-slate-700 dark:text-slate-300 leading-7">
+               <p className="text-slate-700 dark:text-slate-300 leading-7 whitespace-pre-line">
                  {parseBold(content.interpretation)}
                </p>
             </div>

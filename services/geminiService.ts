@@ -2,8 +2,11 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { DailyContent, Verse } from "../types";
 import { PROVERBS_DATA } from "../data/proverbsData";
 
+// CHAVE DE API CHUMBADA (HARDCODED)
+// Isso garante que funcione no Vercel/GitHub Pages sem configuração de variáveis de ambiente.
+const API_KEY = 'AIzaSyBupxKTUvWaqkXPPIHI2Jj03elqs5I7D7g';
+
 // --- ESQUEMA DE RESPOSTA (SCHEMA) ---
-// Isso força a IA a seguir estritamente este formato, impossibilitando erros de estrutura.
 const responseSchema = {
   type: Type.OBJECT,
   properties: {
@@ -33,16 +36,16 @@ export const fetchDailyWisdom = async (day: number): Promise<DailyContent | null
   // 1. Carrega o Texto Bíblico do Banco de Dados Local (100% Fiel e Offline)
   const chapterLines = PROVERBS_DATA[day];
 
-  // Fallback de segurança caso o dia não exista no banco (raro)
+  // Fallback de segurança caso o dia não exista no banco
   if (!chapterLines || chapterLines.length === 0) {
     return {
       day,
       scriptureReference: `Provérbios ${day}`,
       scriptureVerses: [{ verse: 1, text: "Texto indisponível no momento." }],
-      interpretation: "Leia o capítulo na sua Bíblia.",
-      practicalSteps: ["Ler", "Meditar", "Orar"],
-      reflectionQuestion: "O que Deus falou com você?",
-      historicalCuriosity: "Salomão escreveu 3000 provérbios."
+      interpretation: "Capítulo não encontrado no banco de dados.",
+      practicalSteps: [],
+      reflectionQuestion: "",
+      historicalCuriosity: ""
     };
   }
 
@@ -52,26 +55,15 @@ export const fetchDailyWisdom = async (day: number): Promise<DailyContent | null
     text: text
   }));
 
-  // Prepara o texto para enviar para a IA
   const fullTextForAI = chapterLines.join(" ");
 
-  // 2. Valores Padrão (Caso a IA falhe ou esteja sem internet)
-  let aiContent = {
-    interpretation: "A sabedoria de Salomão é um convite para vivermos com prudência, justiça e temor ao Senhor. Medite nestas palavras.",
-    practicalSteps: [
-      "Leia o capítulo novamente com calma.",
-      "Identifique um versículo que chamou sua atenção.",
-      "Faça uma oração pedindo sabedoria."
-    ],
-    reflectionQuestion: "Como você pode aplicar a sabedoria deste capítulo nas suas decisões de hoje?",
-    historicalCuriosity: "O livro de Provérbios foi compilado principalmente para instruir os jovens na corte real de Israel."
-  };
+  // Variável para armazenar o resultado da IA ou o ERRO
+  let aiContent;
 
-  // 3. Chamada à Inteligência Artificial
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    // Tenta inicializar a IA com a chave hardcoded
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
     
-    // Configuração do Prompt (Comando)
     const prompt = `
       Você é um especialista bíblico e historiador.
       Analise o texto abaixo de Provérbios Capítulo ${day}:
@@ -92,40 +84,49 @@ export const fetchDailyWisdom = async (day: number): Promise<DailyContent | null
       contents: prompt,
       config: {
         responseMimeType: "application/json",
-        responseSchema: responseSchema, // Força a estrutura
-        temperature: 0.5, // Baixa criatividade para evitar alucinações
+        responseSchema: responseSchema,
+        temperature: 0.5,
       },
     });
 
     if (response.text) {
       const parsedData = JSON.parse(response.text);
       
-      // Validação final antes de usar
-      if (parsedData.interpretation && 
-          Array.isArray(parsedData.practicalSteps) && 
-          parsedData.practicalSteps.length > 0 &&
-          parsedData.reflectionQuestion) {
-          
-          // Sanitização Extra: Garante que só pegamos os 3 primeiros passos e limpamos strings
-          const cleanSteps = parsedData.practicalSteps
-            .slice(0, 3)
-            .map((s: any) => String(s).replace(/["']/g, ""));
+      // Validação básica e Sanitização
+      const cleanSteps = Array.isArray(parsedData.practicalSteps)
+        ? parsedData.practicalSteps.slice(0, 3).map((s: any) => String(s).replace(/["']/g, ""))
+        : ["Erro ao gerar passos práticos."];
 
-          aiContent = {
-            interpretation: parsedData.interpretation,
-            practicalSteps: cleanSteps,
-            reflectionQuestion: parsedData.reflectionQuestion,
-            historicalCuriosity: parsedData.historicalCuriosity || aiContent.historicalCuriosity
-          };
-      }
+      aiContent = {
+        interpretation: parsedData.interpretation || "Interpretação indisponível.",
+        practicalSteps: cleanSteps,
+        reflectionQuestion: parsedData.reflectionQuestion || "Reflexão indisponível.",
+        historicalCuriosity: parsedData.historicalCuriosity || "Curiosidade indisponível."
+      };
+    } else {
+      throw new Error("A IA retornou uma resposta vazia.");
     }
 
-  } catch (error) {
-    console.warn("AI Generation failed, using fallback content.", error);
-    // Não fazemos nada, mantemos o aiContent padrão definido acima
+  } catch (error: any) {
+    // --- EXIBIÇÃO DE ERRO NA TELA ---
+    // Em vez de texto genérico, mostramos o erro real para depuração.
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    console.error("Erro CRÍTICO na IA:", error);
+
+    aiContent = {
+      interpretation: `⚠️ ERRO DE SISTEMA: ${errorMessage}\n\nPOR QUE ISSO ACONTECEU?\nO sistema tentou conectar à Inteligência Artificial mas falhou. Isso geralmente ocorre se a Chave de API for inválida, se houver bloqueio de rede ou se a cota gratuita excedeu.`,
+      practicalSteps: [
+        "Verifique sua conexão com a internet.",
+        "Se você é o desenvolvedor: Verifique o console (F12) para detalhes.",
+        `Código do erro: ${errorMessage.substring(0, 50)}...`
+      ],
+      reflectionQuestion: "Não foi possível gerar a reflexão devido ao erro acima.",
+      historicalCuriosity: "Dados históricos indisponíveis no momento."
+    };
   }
 
-  // 4. Retorno Final (Texto Fixo + Sabedoria da IA)
+  // 4. Retorno Final
   return {
     day: day,
     scriptureReference: `Provérbios ${day}`,
