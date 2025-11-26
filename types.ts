@@ -16,6 +16,7 @@ export interface DailyContent {
 
 export interface UserState {
   name: string;
+  email: string;
   currentDay: number; // 1 to 31
   completedDays: number[];
   journalEntries: Record<number, string>;

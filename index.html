@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
   <head>
@@ -6,12 +7,9 @@
     <title>Jornada de Sabedoria com Salomão</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-      // Polyfill robusto para evitar "process is not defined"
+      // Polyfill robusto
       window.process = window.process || {};
       window.process.env = window.process.env || {};
-      
-      // INJEÇÃO DA CHAVE DE API (Garantia de funcionamento da IA)
-      window.process.env.API_KEY = 'AIzaSyAGrJZzdfLq_b5J2f6EPmSmedmMtQkM500';
       
       tailwind.config = {
         darkMode: 'class',
@@ -89,7 +87,6 @@
 {
   "imports": {
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
     "react/": "https://aistudiocdn.com/react@^19.2.0/",
     "react": "https://aistudiocdn.com/react@^19.2.0",
     "canvas-confetti": "https://cdn.skypack.dev/canvas-confetti",

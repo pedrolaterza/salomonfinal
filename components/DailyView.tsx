@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { DailyContent, UserState } from '../types';
 import { fetchDailyWisdom } from '../services/geminiService';
@@ -42,7 +43,7 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser }) => {
     if (loading) {
       const interval = setInterval(() => {
         setLoadingMsgIndex(prev => (prev + 1) % LOADING_MESSAGES.length);
-      }, 3000);
+      }, 1800); // Slightly faster cycle for the fake 7s delay
       return () => clearInterval(interval);
     }
   }, [loading]);
@@ -53,20 +54,17 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser }) => {
     setError(null);
     setShowNextSuggestion(false);
     
-    // CACHE KEY ATUALIZADA - "v27_detailed"
-    // Garante que buscamos o novo conteúdo detalhado E salvamos para não gastar créditos depois.
-    const cacheKey = `wisdom_day_${day}_v27_detailed`;
+    // CACHE KEY ATUALIZADA - "v28_static_full"
+    // Garante que buscamos o novo conteúdo ESTÁTICO.
+    const cacheKey = `wisdom_day_${day}_v28_static_full`;
     const cached = localStorage.getItem(cacheKey);
 
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
-        // Verificação simples para garantir que não estamos carregando um erro cacheado
-        if (parsed.interpretation && !parsed.interpretation.includes("⚠️")) {
-            setContent(parsed);
-            setLoading(false);
-            return;
-        }
+        setContent(parsed);
+        setLoading(false);
+        return;
       } catch (e) {
         localStorage.removeItem(cacheKey);
       }
@@ -76,13 +74,10 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser }) => {
       const result = await fetchDailyWisdom(day);
 
       if (result) {
-        // Só salva no cache se não for uma mensagem de erro da IA
-        if (!result.interpretation.includes("⚠️")) {
-            try {
-              localStorage.setItem(cacheKey, JSON.stringify(result));
-            } catch (e) {
-              console.warn("Could not cache to local storage", e);
-            }
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(result));
+        } catch (e) {
+          console.warn("Could not cache to local storage", e);
         }
         setContent(result);
       } else {
@@ -125,12 +120,15 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser }) => {
     } else {
       newCompleted.push(user.currentDay);
       
+      // Disparar confete sempre que marcar como lido
       confetti({
-        particleCount: 150,
-        spread: 70,
-        origin: { y: 0.8 },
-        colors: ['#fbbf24', '#1e3a8a', '#ffffff'],
-        disableForReducedMotion: true
+        particleCount: 200,
+        spread: 80,
+        origin: { y: 0.7 },
+        colors: ['#fbbf24', '#1e3a8a', '#ffffff', '#d97706'],
+        zIndex: 9999,
+        ticks: 300, // Confete dura mais tempo
+        gravity: 0.8
       });
 
       if (user.currentDay < 31) {

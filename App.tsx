@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { UserState, ViewState } from './types';
 import DailyView from './components/DailyView';
@@ -5,6 +6,7 @@ import { BookOpen, Feather, Settings, Moon, Sun, Heart, Star, ChevronRight, Chec
 
 const DEFAULT_USER: UserState = {
   name: '',
+  email: '',
   currentDay: 1,
   completedDays: [],
   journalEntries: {},
@@ -17,7 +19,7 @@ const App: React.FC = () => {
   const [user, setUser] = useState<UserState>(DEFAULT_USER);
   const [view, setView] = useState<ViewState>('home');
   const [loading, setLoading] = useState(true);
-  const [onboardingStep, setOnboardingStep] = useState(0); // 0: Name, 1: Instructions
+  const [onboardingStep, setOnboardingStep] = useState(0); // 0: Name, 1: Email, 2: Instructions
 
   // Load User Data
   useEffect(() => {
@@ -49,6 +51,7 @@ const App: React.FC = () => {
 
   // Onboarding Screen
   if (!loading && !user.isOnboarded) {
+    // Step 0: Name
     if (onboardingStep === 0) {
       return (
         <div className="min-h-screen bg-paper-light dark:bg-paper-dark flex items-center justify-center p-6 text-center fade-in transition-colors duration-300">
@@ -78,8 +81,47 @@ const App: React.FC = () => {
           </div>
         </div>
       );
-    } else {
-      // Step 2: Instructions
+    } 
+    // Step 1: Email
+    else if (onboardingStep === 1) {
+      return (
+        <div className="min-h-screen bg-paper-light dark:bg-paper-dark flex items-center justify-center p-6 text-center fade-in transition-colors duration-300">
+          <div className="max-w-md w-full">
+            <h1 className="text-3xl font-serif font-bold text-royal-900 dark:text-gold-400 mb-4">Quase lá, {user.name}</h1>
+            <p className="text-slate-600 dark:text-slate-300 mb-8">Para acessar digite o email utilizado na compra</p>
+            
+            <div className="mb-6">
+              <label className="block text-left text-sm font-medium text-slate-700 dark:text-slate-400 mb-2">Seu E-mail</label>
+              <input 
+                type="email" 
+                className="w-full p-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-gold-400 outline-none transition-colors placeholder-slate-400 dark:placeholder-slate-300"
+                placeholder="exemplo@email.com"
+                onChange={(e) => updateUser({ email: e.target.value })}
+                value={user.email}
+              />
+            </div>
+            
+            <div className="space-y-3">
+              <button 
+                disabled={!user.email.trim()}
+                onClick={() => setOnboardingStep(2)}
+                className="w-full bg-royal-800 text-white py-4 rounded-lg font-medium hover:bg-royal-900 disabled:opacity-50 transition"
+              >
+                Continuar
+              </button>
+              <button 
+                onClick={() => setOnboardingStep(0)}
+                className="w-full text-slate-400 hover:text-royal-800 dark:hover:text-gold-400 text-sm py-2 transition"
+              >
+                Voltar
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    // Step 2: Instructions
+    else {
       return (
         <div className="min-h-screen bg-royal-900/90 fixed inset-0 z-50 flex items-center justify-center p-6 fade-in">
           <div className="bg-white dark:bg-slate-800 max-w-sm w-full rounded-2xl p-8 shadow-2xl relative overflow-hidden">
@@ -121,7 +163,7 @@ const App: React.FC = () => {
                     onClick={() => setOnboardingStep(0)}
                     className="w-full text-slate-400 hover:text-royal-800 dark:hover:text-gold-400 text-sm py-2 transition"
                 >
-                Voltar e alterar nome
+                Voltar ao início
                 </button>
              </div>
           </div>
@@ -187,18 +229,23 @@ const App: React.FC = () => {
                     const isCurrent = user.currentDay === day;
                     
                     return (
-                      <div 
+                      <button 
                         key={day}
+                        onClick={() => {
+                            updateUser({ currentDay: day });
+                            setView('home');
+                            window.scrollTo(0, 0);
+                        }}
                         className={`
-                          aspect-square flex items-center justify-center rounded-lg text-xs md:text-sm font-medium transition-all relative
+                          aspect-square flex items-center justify-center rounded-lg text-xs md:text-sm font-medium transition-all relative hover:scale-105
                           ${isCompleted 
-                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
-                            : 'bg-slate-50 text-slate-400 dark:bg-slate-700/50 dark:text-slate-500'}
-                          ${isCurrent ? 'ring-2 ring-gold-500 ring-offset-1 dark:ring-offset-slate-800 z-10' : ''}
+                            ? 'bg-green-500 text-white font-bold shadow-md shadow-green-500/30' 
+                            : 'bg-slate-50 text-slate-400 dark:bg-slate-700/50 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700'}
+                          ${isCurrent ? 'ring-2 ring-gold-500 ring-offset-2 ring-offset-white dark:ring-offset-slate-800 z-10' : ''}
                         `}
                       >
-                        {isCompleted ? <CheckCircle size={14} className="opacity-80" /> : day}
-                      </div>
+                        {day}
+                      </button>
                     );
                   })}
                </div>
@@ -300,6 +347,18 @@ const App: React.FC = () => {
                       />
                    </div>
 
+                   {/* Email Read-only Field */}
+                   <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Seu E-mail</label>
+                      <input 
+                        type="text" 
+                        value={user.email}
+                        readOnly
+                        className="w-full p-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed outline-none"
+                        placeholder="E-mail não informado"
+                      />
+                   </div>
+
                    <div className="flex justify-between items-center pt-2">
                      <span className="text-slate-700 dark:text-slate-300">Modo Escuro</span>
                      <button onClick={() => updateUser({ theme: user.theme === 'light' ? 'dark' : 'light' })} className="text-royal-800 dark:text-gold-400">
@@ -318,7 +377,7 @@ const App: React.FC = () => {
                    <button 
                      onClick={() => {
                         updateUser({ isOnboarded: false });
-                        setOnboardingStep(1);
+                        setOnboardingStep(2); // Ir para instruções
                      }}
                      className="w-full text-royal-700 dark:text-royal-300 border border-slate-200 bg-slate-50 hover:bg-slate-100 dark:bg-slate-700 dark:border-slate-600 dark:hover:bg-slate-600 p-3 rounded-lg transition"
                    >
@@ -328,7 +387,7 @@ const App: React.FC = () => {
                    <button 
                      onClick={() => {
                         updateUser({ isOnboarded: false });
-                        setOnboardingStep(0);
+                        setOnboardingStep(0); // Voltar para início
                      }}
                      className="w-full text-royal-700 dark:text-royal-300 border border-slate-200 bg-slate-50 hover:bg-slate-100 dark:bg-slate-700 dark:border-slate-600 dark:hover:bg-slate-600 p-3 rounded-lg transition"
                    >
